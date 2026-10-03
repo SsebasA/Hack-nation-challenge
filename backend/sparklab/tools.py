@@ -289,6 +289,134 @@ def check_definitions(origin: str, expectation_id: str = "", domain: str = "", o
         i["severity"] == "error" for i in issues), "issues": issues})
 
 
+# ---- pre-registration and tests ----
+
+def _validate_protocol(p: dict) -> list[str]:
+    errs = []
+    for k in ("title", "question", "hypotheses", "rivals"):
+        if k not in p:
+            errs.append(f"missing '{k}'")
+    if errs:
+        return errs
+    hyps = p["hypotheses"]
+    if not isinstance(hyps, list) or len(hyps) < 2:
+        errs.append("need >= 2 rival hypotheses with tests")
+    ids = [h.get("id", "") for h in hyps] + [r.get("id", "") for r in p.get("rivals", [])]
+    if not any(i.startswith("H_measurement_error") for i in ids):
+        errs.append("mandatory rival H_measurement_error (with declared floor) missing")
+    for r in p.get("rivals", []):
+        if r.get("id", "").startswith("H_measurement_error") and "floor" not in r:
+            errs.append("H_measurement_error needs a declared 'floor'")
+    for h in hyps:
+        hid = h.get("id", "?")
+        if not ledger.ORIGIN_RE.match(h.get("origin", "")):
+            errs.append(f"{hid}: origin must be 'human' or 'agent:<name>'")
+        t = h.get("test", {})
+        if t.get("kind") not in ("proportion", "prevalence_ratio"):
+            errs.append(f"{hid}: test.kind must be proportion or prevalence_ratio")
+        if t.get("kind") == "prevalence_ratio" and not t.get("group"):
+            errs.append(f"{hid}: prevalence_ratio needs test.group")
+        if "outcome" not in t:
+            errs.append(f"{hid}: test.outcome missing")
+        pred = h.get("prediction", {})
+        if pred.get("op") not in (">=", "<=") or not isinstance(pred.get("value"), (int, float)):
+            errs.append(f"{hid}: prediction must be {{op: '>=' or '<=', value: number}}")
+        if not isinstance(h.get("null"), (int, float)):
+            errs.append(f"{hid}: numeric 'null' required")
+    return errs
+
+
+def register_prereg(protocol_json: str, origin: str) -> str:
+    """Freeze a protocol (JSON string; see docs/PREREG_TEMPLATE.md): validates it, runs the definition
+    check and the power gate on every test, then writes prereg/<id>.json, git-commits it and records
+    the SHA-256 in the ledger. Registered protocols are immutable; to change one, register a new one."""
+    if (e := _check_origin(origin)):
+        return _err(e)
+    try:
+        protocol = json.loads(protocol_json)
+    except json.JSONDecodeError as ex:
+        return _err(f"protocol_json is not valid JSON: {ex}")
+    errs = _validate_protocol(protocol)
+    if errs:
+        return _err("protocol invalid", details=errs)
+    df = _discovery()
+    gate_failures = []
+    for h in protocol["hypotheses"]:
+        t = h["test"]
+        defs = _definition_issues(t.get("domain", ""), t["outcome"], t.get("category", ""),
+                                  h.get("statement", ""), t.get("group", ""))
+        if any(i["severity"] == "error" for i in defs):
+            gate_failures.append({"hypothesis": h["id"], "gate": "definitions", "issues": defs})
+            continue
+        pw = _power(df, t.get("domain", ""), t["outcome"], t.get("group", ""))
+        if not pw["passes"]:
+            gate_failures.append({"hypothesis": h["id"], "gate": "power", "arms": pw["arms"]})
+    if gate_failures:
+        entry = ledger.append("gate", origin, {"action": "register_prereg rejected", "title": protocol["title"],
+                                               "failures": gate_failures})
+        return _err("rejected by gates; nothing registered", ledger_id=entry["id"], failures=gate_failures)
+    try:
+        entry = ledger.register_prereg(protocol, origin)
+    except Exception as ex:
+        return _err(str(ex))
+    return _json({"ok": True, "ledger_id": entry["id"], **entry["payload"],
+                  "next": "Ask a human to run: python -m sparklab.approve "
+                          f"{entry['payload']['prereg_id']} --by <name>"})
+
+
+def run_test(prereg_id: str, origin: str, cycle: str = "J") -> str:
+    """Run every test in a registered protocol. cycle='J' (discovery) needs only the prereg.
+    cycle='I' (hold-out) needs human approval with matching hash + verified unseal, and is
+    counted as a hold-out look (max MAX_HOLDOUT_LOOKS)."""
+    if (e := _check_origin(origin)):
+        return _err(e)
+    try:
+        protocol = ledger.load_protocol(prereg_id)  # raises if missing or edited after registration
+    except Exception as ex:
+        return _err(str(ex))
+    if cycle == C.DISCOVERY:
+        df = _discovery()
+    elif cycle == C.HOLDOUT:
+        ok, why = ledger.holdout_gate(prereg_id)
+        if not ok:
+            ledger.append("gate", origin, {"action": "run_test hold-out refused", "prereg_id": prereg_id, "reason": why})
+            return _err(f"hold-out refused: {why}")
+        if ledger.holdout_looks() >= C.MAX_HOLDOUT_LOOKS:
+            ledger.append("gate", origin, {"action": "run_test hold-out refused", "prereg_id": prereg_id,
+                                           "reason": "hold-out look budget spent"})
+            return _err(f"hold-out already looked at {ledger.holdout_looks()} time(s); budget is {C.MAX_HOLDOUT_LOOKS}")
+        look = ledger.append("holdout_look", origin, {"prereg_id": prereg_id, "look": ledger.holdout_looks() + 1})
+        try:
+            df = data.load_holdout(prereg_id)
+        except Exception as ex:
+            return _err(str(ex), look_ledger_id=look["id"])
+    else:
+        return _err(f"cycle must be {C.DISCOVERY!r} or {C.HOLDOUT!r}")
+
+    results = []
+    for h in protocol["hypotheses"]:
+        t = h["test"]
+        try:
+            res = _run_query(df, t)
+            pw = _power(df, t.get("domain", ""), t["outcome"], t.get("group", ""))
+        except Exception as ex:
+            results.append({"id": h["id"], "verdict": "inconclusive", "reason": f"error: {ex}"})
+            continue
+        if not pw["passes"]:
+            v = {"verdict": "inconclusive", "reason": f"power gate failed in cycle {cycle}: {pw['arms']}"}
+        else:
+            v = S.verdict(res.get("estimate"), res.get("ci_low"), res.get("ci_high"), h["prediction"], h["null"])
+        cid = _calc("run_test", origin, {"cycle": cycle, "prereg_id": prereg_id, "hypothesis": h["id"], **t},
+                    {**res, **v})
+        results.append({"id": h["id"], "calc_id": cid, "estimate": res.get("estimate"),
+                        "ci": [res.get("ci_low"), res.get("ci_high")], "prediction": h["prediction"],
+                        "null": h["null"], **v})
+    entry = ledger.append("result", origin, {"prereg_id": prereg_id, "cycle": cycle,
+                                             "confirmatory": cycle == C.HOLDOUT, "results": results})
+    return _json({"ok": True, "ledger_id": entry["id"], "cycle": cycle, "confirmatory": cycle == C.HOLDOUT,
+                  "results": results})
+
+
 # ---- ledger ----
 
 def ledger_append(entry_type: str, payload_json: str, origin: str) -> str:

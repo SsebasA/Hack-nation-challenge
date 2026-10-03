@@ -143,9 +143,6 @@ def main():
     assert lr["ok"] and len(lr["entries"]) == 2 and lr["holdout_looks"] == 0
     assert ledger.verify()[0]
 
-    # Read-only part only: Step 6 tools are not present yet.
-    assert not hasattr(tools, "register_prereg") and not hasattr(tools, "run_test")
-
     shutil.rmtree(TMP, ignore_errors=True)
     print("OK")
 
