@@ -16,7 +16,7 @@ import re
 import subprocess
 import sys
 
-from sparklab import config as C
+import config as C
 
 ORIGIN_RE = re.compile(r"^(human|agent:[a-z_]+)$")
 ENTRY_TYPES = {"seal", "unseal", "anomaly", "attack", "hypothesis", "prereg", "approval",
