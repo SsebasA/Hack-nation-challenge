@@ -1,0 +1,112 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+wheels/
+share/python-wheels/
+*.egg-info/
+*.egg
+.installed.cfg
+MANIFEST
+
+# ---- Entornos virtuales ----
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ---- Gestores de paquetes ----
+pip-log.txt
+pip-delete-this-directory.txt
+.uv/
+poetry.lock.bak
+
+# ---- Tests / coverage / linters ----
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# ---- Jupyter / notebooks ----
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# ---- Secretos y configuración local ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# ---- Datos y artefactos de modelos ----
+data/raw/
+data/interim/
+data/processed/
+*.sqlite3
+*.db
+*.ckpt
+*.pt
+*.pth
+*.h5
+*.onnx
+*.joblib
+*.pkl
+outputs/
+runs/
+wandb/
+mlruns/
+checkpoints/
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Node (si se añade un frontend) ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+.nuxt/
+.parcel-cache/
+
+# ---- Editores / IDEs ----
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- macOS / SO ----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
