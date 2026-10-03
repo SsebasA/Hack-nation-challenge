@@ -1,0 +1,15 @@
+{
+  "_comment": "SEEDED CONTROL. Deliberately wrong definition: 'normal' uses HbA1c < 6.5 instead of ADA < 5.7. Used to test whether the Skeptic catches definition errors. Do NOT fix (CLAUDE.md rule 5). read_board strips 'seeded' so agents cannot tell it apart.",
+  "expectations": [
+    {
+      "id": "E04",
+      "seeded": true,
+      "statement": "Adults with normal glycemia by HbA1c",
+      "query": {"kind": "proportion", "domain": "", "outcome": "hba1c < 6.5", "category": "normal"},
+      "expected": null,
+      "source": {"citation": "TODO: cite a source for the normoglycemia share", "url": null},
+      "comparability": "TODO",
+      "note": ""
+    }
+  ]
+}
