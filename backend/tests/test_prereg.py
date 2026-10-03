@@ -105,6 +105,16 @@ def main():
     assert any("floor" in d for d in r["details"]), r
     r = refused({**PROTOCOL, "hypotheses": [H_ACCESS]})
     assert any(">= 2" in d for d in r["details"]), r
+    # Malformed shapes (seen in the Step 10 live run) are refused cleanly, not crashed on.
+    r = refused({**PROTOCOL, "rivals": ["H_measurement_error"]})
+    assert any("'rivals' must be a list of objects" in d for d in r["details"]), r
+    r = refused({**PROTOCOL, "hypotheses": ["H_access", "H_recent_onset"]})
+    assert any("'hypotheses' must be a list of objects" in d for d in r["details"]), r
+    r = refused({**PROTOCOL, "hypotheses": [{**H_ACCESS, "test": "x"}, H_ONSET]})
+    assert any("'test' must be an object" in d for d in r["details"]), r
+    r = refused({**PROTOCOL, "hypotheses": [{**H_ACCESS, "prediction": ">= 1.5"}, H_ONSET]})
+    assert any("'prediction' must be an object" in d for d in r["details"]), r
+    assert j(tools.register_prereg("[1, 2]", EXP))["error"] == "protocol invalid"
     assert not ledger.read("prereg") and not ledger.read("gate")  # structural refusals write nothing
 
     # Power gate: tiny cell refused and logged.

@@ -292,10 +292,22 @@ def check_definitions(origin: str, expectation_id: str = "", domain: str = "", o
 # ---- pre-registration and tests ----
 
 def _validate_protocol(p: dict) -> list[str]:
+    if not isinstance(p, dict):
+        return ["protocol must be a JSON object"]
     errs = []
     for k in ("title", "question", "hypotheses", "rivals"):
         if k not in p:
             errs.append(f"missing '{k}'")
+    if errs:
+        return errs
+    # Shape check first, so malformed agent input is refused instead of crashing the gates below.
+    for k in ("hypotheses", "rivals"):
+        if not isinstance(p[k], list) or not all(isinstance(x, dict) for x in p[k]):
+            errs.append(f"'{k}' must be a list of objects (see docs/PREREG_TEMPLATE.md)")
+    for h in p["hypotheses"] if isinstance(p["hypotheses"], list) else []:
+        for k in ("test", "prediction"):
+            if isinstance(h, dict) and not isinstance(h.get(k, {}), dict):
+                errs.append(f"{h.get('id', '?')}: '{k}' must be an object")
     if errs:
         return errs
     hyps = p["hypotheses"]
