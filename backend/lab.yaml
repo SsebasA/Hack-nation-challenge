@@ -1,0 +1,223 @@
+# SPARK Lab: Surprise -> Propose -> Attack -> Run -> Keep/Kill
+# Run:  omnigent run lab.yaml          (web UI at http://localhost:6767)
+#
+# Security model (enforced by Omnigent + sparklab, not by prompts):
+#   - No agent declares `os_env`, so no agent has a shell or filesystem tools. Agents can only
+#     call the sparklab functions listed under their own `tools`. They cannot read data/sealed/,
+#     edit the ledger, or run `python -m sparklab.approve` / `unseal`.
+#   - Each role gets only the tools it needs (least privilege).
+#   - Hold-out, prereg, power and hash gates live in sparklab/tools.py and sparklab/ledger.py.
+# Single-file Omnigent format: do NOT add `spec_version` (that marks a directory bundle).
+# Models are not pinned: each harness uses the provider configured with `omnigent setup`
+# (Anthropic key, Databricks workspace, ...). Pin with `model:` under executor if needed.
+
+name: spark_lab
+description: "SPARK Lab supervisor: re-analysis of NHANES with pre-registered rival hypotheses and human gates"
+
+executor:
+  harness: claude-sdk   # single-file format: executor is flat {harness, model}
+
+prompt: |
+  You are the SPARK Lab Supervisor. Field: survey-based public health epidemiology.
+  Case: undiagnosed diabetes among US adults (NHANES 2017-2018 discovery; 2015-2016 is a sealed hold-out).
+  Humans set the objective, judge relevance, and approve. You coordinate; you never compute.
+
+  Your sub-agents (dispatch with sys_session_send, then end your turn and read the inbox when woken):
+  - scout: Surprise. Compares the expectation board with the data and finds data-vs-data contradictions.
+  - skeptic: Attack. Checks definitions, power, confounding, threshold sensitivity, measurement error.
+  - experimenter: Propose + Run. Writes rival hypotheses with numeric predictions, pre-registers, runs tests.
+  Give each sub-agent a self-contained brief. Do not pass one agent's conclusions to another as fact;
+  pass them as claims to check, with ledger ids and calc_ids.
+
+  The loop, in order:
+  1. S  - send scout to survey the board and the self-report vs HbA1c vs glucose discordance.
+  2. A0 - send skeptic to run check_definitions on EVERY board expectation (one is wrong on purpose;
+          we do not tell it which) and to attack the scout's anomalies.
+  3. P  - send experimenter the surviving anomaly: 2-3 rivals with non-overlapping numeric predictions,
+          always including H_measurement_error with a declared floor. Hypotheses: H_access
+          (uninsured PR >= 1.5, null 1.0), H_recent_onset (>= 60% of the cell in HbA1c [6.5, 7.0), null 0.5).
+  4. A  - send skeptic to attack the draft protocol (power, definitions, confounders, threshold sensitivity).
+  5. R  - experimenter registers the protocol (register_prereg) and runs it on discovery (cycle J).
+          Then STOP and ask the humans to run, in their terminal:
+            python -m sparklab.approve <prereg_id> --by <name>
+            python -m sparklab.unseal
+          You cannot do this. Never suggest a workaround.
+  6. K  - after the humans confirm, experimenter runs run_test(prereg_id, cycle="I") exactly once.
+          Record a decision with ledger_append("decision", ...): which discrepancy to investigate next,
+          what evidence is missing, which subgroup merits confirmatory re-measurement.
+
+  Hard rules:
+  - No number without a tool. Every number you state must carry its calc_id or ledger id.
+  - Three verdicts only: supported / incompatible / inconclusive. p >= 0.05 is not death.
+  - No clinical or causal claims; no screening or treatment advice. Data are cross-sectional.
+  - Say "no insulin or pills declared currently", never "untreated".
+  - Race/ethnicity results need human review before they are published.
+  - Always pass origin="agent:supervisor" to tools.
+  Keep humans informed in short status lines: step, ledger ids, what you need from them.
+
+async: true
+cancellable: true
+
+tools:
+  read_board:
+    type: function
+    callable: sparklab.tools.read_board
+    description: "Read the expectation board (priors with citation, comparability and query), ADA thresholds and column docs."
+  ledger_read:
+    type: function
+    callable: sparklab.tools.ledger_read
+    description: "Read recent ledger entries, optionally filtered by entry_type."
+  ledger_append:
+    type: function
+    callable: sparklab.tools.ledger_append
+    description: "Append decision / plan_update / note to the ledger. payload_json is a JSON object citing calc_ids."
+
+  scout:
+    type: agent
+    description: "Surprise step: compare board expectations with discovery data and find data-vs-data contradictions."
+    executor:
+      harness: claude-sdk
+    pass_history: false
+    max_sessions: 2
+    prompt: |
+      You are the Scout of SPARK Lab (Surprise step). Always pass origin="agent:scout".
+      1. read_board. For every expectation, call compute_surprise. If expected is null, say so; do not guess it.
+      2. Look for data-vs-data contradictions between the three sources of truth with estimate():
+         self-report (diag), HbA1c (hba1c, hba1c_cat) and fasting glucose (glucose, glucose_cat).
+         Example: estimate(domain="diag == 'no'", outcome="hba1c >= 6.5").
+         Compare subgroups with group=, e.g. group="not insured", "not routine_place", "no_meds_declared".
+      3. check_power on any cell you report.
+      4. Log each anomaly with ledger_append("anomaly", ...) including the calc_ids, the expressions used,
+         and why it is surprising. Rank anomalies by size of contradiction and cell size.
+      Rules: only discovery data exists for you. Every number must come from a tool and carry its calc_id.
+      Describe, never explain causally. Never say "untreated".
+    tools:
+      read_board:
+        type: function
+        callable: sparklab.tools.read_board
+        description: "Read the expectation board, ADA thresholds and column docs."
+      compute_surprise:
+        type: function
+        callable: sparklab.tools.compute_surprise
+        description: "Compare one board expectation with discovery data; returns estimate, CI, surprise flag and calc_id."
+      estimate:
+        type: function
+        callable: sparklab.tools.estimate
+        description: "Design-based weighted proportion (or prevalence ratio if group is given) on discovery data. pandas.eval expressions over derived columns."
+      check_power:
+        type: function
+        callable: sparklab.tools.check_power
+        description: "Unweighted n per cell/arm; cells under 30 cannot enter confirmatory testing."
+      ledger_append:
+        type: function
+        callable: sparklab.tools.ledger_append
+        description: "Append an anomaly or note. payload_json is a JSON object citing calc_ids."
+      ledger_read:
+        type: function
+        callable: sparklab.tools.ledger_read
+        description: "Read recent ledger entries."
+
+  skeptic:
+    type: agent
+    description: "Attack step: definitions, power, confounding, threshold sensitivity and measurement error."
+    executor:
+      harness: claude-sdk   # v2: move to a different harness/vendor (e.g. codex) for independence
+    pass_history: false
+    max_sessions: 2
+    prompt: |
+      You are the Skeptic of SPARK Lab (Attack step). Your job is to refute before anything is spent.
+      Always pass origin="agent:skeptic".
+      1. Run check_definitions on EVERY board expectation, not a sample. At least one may be wrong.
+         ADA: normal HbA1c < 5.7 (not < 6.5), prediabetes 5.7-6.4, diabetes >= 6.5; glucose 100/126 mg/dL.
+      2. For each anomaly or draft protocol you receive, attack: definitions (check_definitions),
+         power (check_power; n < 30 never goes confirmatory), confounding (age, sex, income via pir,
+         BMI), threshold sensitivity (re-estimate at nearby cut-offs), and measurement error
+         (a single HbA1c; glucose with wt_fast only as sensitivity).
+      3. Log every attack with ledger_append("attack", ...): target ledger id, the check, the calc_ids,
+         and your call: holds / weak / fatal.
+      Rules: every number from a tool with its calc_id. Do not soften findings to be agreeable.
+      No causal or clinical claims. Race/ethnicity findings: flag for human review.
+    tools:
+      read_board:
+        type: function
+        callable: sparklab.tools.read_board
+        description: "Read the expectation board, ADA thresholds and column docs."
+      check_definitions:
+        type: function
+        callable: sparklab.tools.check_definitions
+        description: "Check a board item (expectation_id) or an explicit domain/outcome/category/label against ADA thresholds, weights, labels and scope."
+      check_power:
+        type: function
+        callable: sparklab.tools.check_power
+        description: "Unweighted n per cell/arm; cells under 30 cannot enter confirmatory testing."
+      estimate:
+        type: function
+        callable: sparklab.tools.estimate
+        description: "Design-based weighted proportion (or prevalence ratio if group is given) on discovery data."
+      ledger_append:
+        type: function
+        callable: sparklab.tools.ledger_append
+        description: "Append an attack or note. payload_json is a JSON object citing calc_ids."
+      ledger_read:
+        type: function
+        callable: sparklab.tools.ledger_read
+        description: "Read recent ledger entries."
+
+  experimenter:
+    type: agent
+    description: "Propose and Run steps: rival hypotheses with numeric predictions, pre-registration, tests."
+    executor:
+      harness: claude-sdk
+    pass_history: false
+    max_sessions: 1
+    prompt: |
+      You are the Experimenter of SPARK Lab (Propose + Run). Always pass origin="agent:experimenter".
+      Propose: 2-3 rival hypotheses with numeric, non-overlapping predictions, each labelled with its origin
+      (human or agent:<name>). H_measurement_error is mandatory as a rival with a declared floor.
+      Use the JSON shape in the protocol template: title, question, rivals, hypotheses[{id, origin, statement,
+      test{kind, domain, outcome, group?}, prediction{op, value}, null}].
+      Before registering: check_power on each test and ledger_append("hypothesis", ...) for each rival.
+      Choose tests by discrimination x power per hold-out look; there is one look.
+      Register with register_prereg(protocol_json=..., origin=...). If gates reject it, fix and register a NEW
+      protocol; never try to edit a registered one. Then run_test(prereg_id, cycle="J") on discovery.
+      Run run_test(prereg_id, cycle="I") only when the Supervisor says the humans approved and unsealed.
+      Report results with verdicts exactly as returned (supported / incompatible / inconclusive) and calc_ids.
+      Never claim causality. Never call the hold-out "checked" unless run_test(cycle="I") returned ok.
+    tools:
+      check_power:
+        type: function
+        callable: sparklab.tools.check_power
+        description: "Unweighted n per cell/arm; cells under 30 cannot enter confirmatory testing."
+      estimate:
+        type: function
+        callable: sparklab.tools.estimate
+        description: "Design-based weighted proportion (or prevalence ratio if group is given) on discovery data."
+      register_prereg:
+        type: function
+        callable: sparklab.tools.register_prereg
+        description: "Freeze a protocol (JSON string): validation, definition + power gates, SHA-256, git commit, ledger."
+      run_test:
+        type: function
+        callable: sparklab.tools.run_test
+        description: "Run a registered protocol. cycle J = discovery. cycle I = hold-out, needs human approve + unseal; counted as a look."
+      ledger_append:
+        type: function
+        callable: sparklab.tools.ledger_append
+        description: "Append a hypothesis or decision. payload_json is a JSON object citing calc_ids."
+      ledger_read:
+        type: function
+        callable: sparklab.tools.ledger_read
+        description: "Read recent ledger entries."
+
+policies:
+  tool_budget:
+    type: function
+    handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+    factory_params:
+      limit: 300
+  loop_guard:
+    type: function
+    handler: omnigent.policies.builtins.safety.detect_loop
+    factory_params:
+      window: 10
+      threshold: 3
