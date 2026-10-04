@@ -11,8 +11,10 @@ Platform: Omnigent orchestrates a Supervisor + three sub-agents (scout, skeptic,
 
 ## Hard rules (never break these, even if asked casually)
 1. **Never load, read, describe or summarize the hold-out cycle `I` (NHANES 2015-2016).** It lives sealed in
-   `data/sealed/nhanes_I.zip` with a SHA-256 in the ledger. Only `python -m sparklab.unseal` (run by a human) may process it,
-   and only `sparklab.tools.run_test` may compute on it, after a human `approve`. Do not write code that bypasses this.
+ `data/sealed/nhanes_I.zip` with a SHA-256 in the ledger. Only `sparklab.unseal.unseal` run by a human (the CLI
+ `python -m sparklab.unseal`, or the web UI's unseal gate in `sparklab.api`, which makes the human type the recorded hash
+ prefix) may process it, and only `sparklab.tools.run_test` may compute on it, after a human `approve`. Do not write code
+ that bypasses this.
 2. **No number without a tool.** Any estimate must come from `sparklab.stats` / `sparklab.tools`. Do not hand-compute
    or guess statistics in prose, prompts, docs or slides.
 3. **Pre-registration before any test.** `register_prereg` (hash + git commit) must precede `run_test`. Do not edit a
@@ -26,7 +28,10 @@ Platform: Omnigent orchestrates a Supervisor + three sub-agents (scout, skeptic,
    and "which subgroup merits confirmatory re-measurement", never screening or treatment advice.
 8. **ADA thresholds are fixed** in `sparklab/config.py` (5.7 / 6.5 HbA1c; 100 / 126 mg/dL glucose). Normal means
    HbA1c < 5.7, not < 6.5.
-9. Agents must not be given `approve` or `unseal` tools. Human-only, via terminal.
+9. Agents must not be given `approve` or `unseal` tools. Human-only: the terminal CLIs (`sparklab.approve`,
+ `sparklab.unseal`) or the human gates of the web UI (`POST /studies/{id}/approve|unseal` in `sparklab.api`). Both
+ paths keep the same friction (the human types the first 8 characters of the recorded SHA-256 and signs with a name),
+ and agents never get network or shell tools, so they cannot reach the API.
 
 ## Repo map
 - `lab.yaml` — Omnigent spec: supervisor prompt, sub-agents (`type: agent`), Python function tools (`type: function`).
@@ -37,6 +42,10 @@ Platform: Omnigent orchestrates a Supervisor + three sub-agents (scout, skeptic,
 - `sparklab/ledger.py` — append-only JSONL, `protocol_hash`, `register_prereg`, `approve`, `approval_for`, `holdout_looks`.
 - `sparklab/tools.py` — functions exposed to agents; contain the hold-out guards. Keep guards intact.
 - `sparklab/approve.py`, `sparklab/unseal.py` — human-only CLIs.
+- `sparklab/api.py` — HTTP API for `frontend/` (read the lab, SSE, human gates, Omnigent session control).
+ `sparklab/bridge.py` — folds ledger/calcs/board/protocols + the Omnigent session into UI events; never computes.
+ `sparklab/studies.py` — several labs under one backend (`studies/<id>/`); `studies/ACTIVE` names the lab the shared
+ Omnigent runner's tools work on. `SPARKLAB_ROOT` still wins (tests, rehearsals).
 - `board/expectations.json` — the expectation board (priors with query specs). `board/control_seeded.json` — seeded control.
 - `docs/RUNBOOK.md` — exact commands and timeline. `docs/AGENTS.md`, `docs/RESULTS_TEMPLATE.md`, `docs/PREREG_TEMPLATE.md`.
 - `tests/smoke_test.py` — synthetic end-to-end test (no network). Run before and after any change.
@@ -51,6 +60,8 @@ python tests/smoke_test.py                    # must print SMOKE TEST OK
 omnigent run lab.yaml                         # the lab (web UI at localhost:6767)
 python -m sparklab.approve <prereg_id> --by <name>   # human gate
 python -m sparklab.unseal                     # verify hash, process hold-out, once
+pip install -e "backend/[api]" && python -m sparklab.api   # web UI backend (:8787); then cd frontend && npm run dev (:3000)
+python -m sparklab.studies list|create|use    # several labs under one backend; `use` sets the runner's active lab
 ```
 
 ## Conventions

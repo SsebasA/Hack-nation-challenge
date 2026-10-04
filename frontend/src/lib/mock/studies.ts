@@ -1,6 +1,8 @@
 import type { Study } from "@/lib/spark/types"
 
-// MOCK: static list until a backend exists. Only the first study has a simulated run.
+// Static list. The first study is the real lab (backend/): when the SPARK Lab API is reachable it is
+// driven live from the ledger and the Omnigent session; otherwise it replays the scripted mock.
+// The other two are examples with no run behind them.
 export const STUDIES: Study[] = [
   {
     id: "undiagnosed-diabetes",
@@ -13,6 +15,7 @@ export const STUDIES: Study[] = [
     stage: "surprise",
     needsHuman: "Set the objective",
     updated: "just now",
+    source: "live",
   },
   {
     id: "hypertension-awareness",

@@ -11,7 +11,7 @@ Sub-agents are roles; tool guards and human CLIs are gates; the ledger is the la
 | Scout | **S**urprise | read_board, compute_surprise, estimate, check_power, ledger_append, ledger_read |
 | Skeptic | **A**ttack | read_board, check_definitions, check_power, estimate, ledger_append, ledger_read |
 | Experimenter | **P**ropose, **R**un | check_power, estimate, register_prereg, run_test, ledger_append, ledger_read |
-| Humans | objective, judgment, **K**eep/Kill gate | `sparklab.approve`, `sparklab.unseal`, `sparklab.ledger add` (terminal only) |
+| Humans | objective, judgment, **K**eep/Kill gate | `sparklab.approve`, `sparklab.unseal`, `sparklab.ledger add` in the terminal, or the same gates in the web UI (`sparklab.api`: objective, pick, approve, unseal, decision, messages to the Supervisor) |
 
 No agent declares `os_env`, so no agent has a shell or file access: they can only call the
 functions above. Sub-agents run with `pass_history: false` so each starts independent.
@@ -26,7 +26,8 @@ functions above. Sub-agents run with `pass_history: false` so each starts indepe
 | Power | `tools.register_prereg`, `tools.run_test` | cells with unweighted n < 30 entering confirmatory testing |
 | Definitions | `tools.check_definitions` | non-ADA category thresholds, wrong weights, banned labels; flags causal wording and race/ethnicity |
 | Mandatory rival | `tools.register_prereg` | protocols without `H_measurement_error` and a declared floor |
-| Human-only actions | `approve.py`, `unseal.py` (TTY + typed hash prefix) | agents approving or unsealing |
+| Human-only actions | `approve.py`, `unseal.py` (TTY + typed hash prefix) and `api.py` `POST /studies/{id}/approve\|unseal` (typed hash prefix + signature; agents have no network tools) | agents approving or unsealing |
+| Human pick | `api.py` `POST /studies/{id}/pick` + Supervisor prompt (stop after A0) | the agents choosing which discrepancy matters |
 | Ledger integrity | `ledger.verify` (hash chain) | hand edits, deletions, reordering |
 | Number provenance | `ledger/calcs.jsonl` | numbers without a `calc_id` (warned on `ledger_append`) |
 

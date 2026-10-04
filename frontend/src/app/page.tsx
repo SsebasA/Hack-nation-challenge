@@ -1,11 +1,10 @@
-import Link from "next/link"
-import { ArrowRight, Database, Hand, Lock } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ACTORS, STAGES, STAGE_BY_ID, STAGE_INDEX } from "@/lib/spark/meta"
-import type { Study } from "@/lib/spark/types"
+import { ACTORS, STAGES } from "@/lib/spark/meta"
 import { STUDIES } from "@/lib/mock/studies"
 import { ActorAvatar } from "@/components/spark/primitives"
 import { NewStudyDialog } from "@/components/spark/new-study-dialog"
+import { StudyList } from "@/components/spark/study-list"
 
 export default function Home() {
   return (
@@ -58,72 +57,9 @@ export default function Home() {
             <h2 className="text-lg font-semibold">Studies</h2>
             <NewStudyDialog />
           </div>
-          <div className="space-y-3">
-            {STUDIES.map((s) => (
-              <StudyCard key={s.id} study={s} />
-            ))}
-          </div>
+          <StudyList studies={STUDIES} />
         </section>
       </main>
     </div>
   )
-}
-
-function StudyCard({ study }: { study: Study }) {
-  const stage = STAGE_BY_ID[study.stage]
-  const idx = STAGE_INDEX[study.stage]
-
-  const body = (
-    <div
-      className={cn(
-        "group flex flex-col gap-4 rounded-xl border bg-background p-4 transition md:flex-row md:items-center",
-        study.interactive ? "hover:border-foreground/30 hover:shadow-sm" : "opacity-60",
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold">{study.title}</h3>
-          {!study.interactive && (
-            <span className="rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground">Example · no simulated run</span>
-          )}
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{study.question}</p>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Database className="size-3" /> {study.dataset}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Lock className="size-3" /> {study.holdout}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 flex-col gap-2 md:w-56">
-        <div className="flex items-center justify-between text-xs">
-          <span className={cn("font-medium", stage.color.text)}>{stage.name}</span>
-          <span className="text-muted-foreground">
-            {idx + 1} / {STAGES.length}
-          </span>
-        </div>
-        <div className="flex gap-1">
-          {STAGES.map((s, i) => (
-            <span key={s.id} className={cn("h-1.5 flex-1 rounded-full", i < idx ? "bg-foreground" : i === idx ? s.color.bg : "bg-muted")} />
-          ))}
-        </div>
-        {study.needsHuman ? (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
-            <Hand className="size-3" /> Needs you: {study.needsHuman}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Updated {study.updated}</span>
-        )}
-      </div>
-
-      {study.interactive && (
-        <ArrowRight className="hidden size-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-foreground md:block" />
-      )}
-    </div>
-  )
-
-  return study.interactive ? <Link href={`/studies/${study.id}`}>{body}</Link> : body
 }

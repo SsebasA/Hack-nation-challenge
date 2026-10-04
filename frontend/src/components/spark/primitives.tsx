@@ -1,10 +1,24 @@
+"use client"
+
 import { cn } from "@/lib/utils"
 import { ACTORS, STAGE_BY_ID } from "@/lib/spark/meta"
+import { useDataSource } from "@/lib/spark/data-source"
 import type { Actor, AgentStatus, StageId } from "@/lib/spark/types"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-// A statistic that did not come from a real tool run. Always visibly tagged.
-export function MockValue({ children, className }: { children: React.ReactNode; className?: string }) {
+// A statistic, labelled by where it came from. In the scripted replay every number is a placeholder
+// and is tagged MOCK. In live mode numbers are copied from tool outputs and carry their calc_id
+// (ledger/calcs.jsonl), so "no number without a tool" stays visible in the UI.
+export function MockValue({ children, className, calcId }: { children: React.ReactNode; className?: string; calcId?: string }) {
+  const source = useDataSource()
+  if (source === "live") {
+    return (
+      <span className={cn("inline-flex items-baseline gap-1 tabular-nums", className)}>
+        <span>{children}</span>
+        {calcId && <CalcChip id={calcId} />}
+      </span>
+    )
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -16,6 +30,27 @@ export function MockValue({ children, className }: { children: React.ReactNode; 
       <TooltipContent>Placeholder value. Real values will come from sparklab.stats tools.</TooltipContent>
     </Tooltip>
   )
+}
+
+// Provenance chip for a number that came out of a sparklab tool.
+export function CalcChip({ id, className }: { id: string; className?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("rounded-sm bg-emerald-50 px-1 font-mono text-[9px] font-semibold tracking-wide text-emerald-800 ring-1 ring-emerald-200", className)}>
+          {id}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Computed by a sparklab tool. Record {id} in ledger/calcs.jsonl.</TooltipContent>
+    </Tooltip>
+  )
+}
+
+// Only the mock replay shows the MOCK tag; live values show nothing extra here.
+export function MockTag({ className }: { className?: string }) {
+  const source = useDataSource()
+  if (source === "live") return null
+  return <span className={cn("rounded bg-amber-100 px-1 text-[9px] font-semibold text-amber-800", className)}>MOCK</span>
 }
 
 export function ActorAvatar({ actor, size = "md", className }: { actor: Actor; size?: "sm" | "md" | "lg"; className?: string }) {
