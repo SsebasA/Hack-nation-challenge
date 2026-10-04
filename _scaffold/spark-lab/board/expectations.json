@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "_comment": "Priors for the Surprise step. expected = proportion (0-1). Every expected value needs a citation (PMID/DOI/URL) and a comparability label (CLAUDE.md rule 6). CDC values derived from NHANES keep note 'pipeline check'. TODO(Brau): fill expected, source and comparability; leave null until cited.",
+  "expectations": [
+    {
+      "id": "E01",
+      "statement": "Total diabetes (diagnosed, or HbA1c >= 6.5%) among US adults",
+      "query": {"kind": "proportion", "domain": "", "outcome": "diag == 'yes' or hba1c >= 6.5", "category": ""},
+      "expected": null,
+      "source": {"citation": "TODO: CDC National Diabetes Statistics Report", "url": null},
+      "comparability": "TODO",
+      "note": "pipeline check"
+    },
+    {
+      "id": "E02",
+      "statement": "Undiagnosed diabetes (reports no diagnosis, HbA1c >= 6.5%) among US adults",
+      "query": {"kind": "proportion", "domain": "", "outcome": "diag == 'no' and hba1c >= 6.5", "category": "undiagnosed_diabetes"},
+      "expected": null,
+      "source": {"citation": "TODO: CDC National Diabetes Statistics Report", "url": null},
+      "comparability": "TODO",
+      "note": "pipeline check"
+    },
+    {
+      "id": "E03",
+      "statement": "Prediabetes by HbA1c (5.7-6.4%) among adults without diagnosed diabetes",
+      "query": {"kind": "proportion", "domain": "diag == 'no' or diag == 'borderline'", "outcome": "hba1c >= 5.7 and hba1c < 6.5", "category": "prediabetes"},
+      "expected": null,
+      "source": {"citation": "TODO: CDC National Diabetes Statistics Report", "url": null},
+      "comparability": "TODO",
+      "note": "pipeline check"
+    }
+  ]
+}
