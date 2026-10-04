@@ -29,6 +29,36 @@ Pegar al chat del equipo los conteos que imprime el comando (filas, adultos, con
 Llenar `expected`, `source` y `comparability` en `board/expectations.json` (proporción 0–1, con cita).
 Valores de CDC derivados de NHANES conservan `"note": "pipeline check"`. **No tocar** `board/control_seeded.json`.
 
+## 2b. UI web (opcional, en paralelo al loop)
+La UI de `frontend/` habla con `python -m sparklab.api` (puerto 8787), que lee el laboratorio (pizarrón, ledger,
+calcs, protocolos) y la sesión `spark_lab` de Omnigent (mensajes, tool calls, estado de sub-agentes) y expone los
+gates humanos. No calcula nada: todo número lleva su `calc_id`.
+```bash
+omnigent stop && source .venv/bin/activate && omnigent start   # Omnigent DEBE correr desde este venv (importa sparklab.tools)
+pip install -e "backend/[api]"                 # desde la raíz; añade fastapi/uvicorn/httpx (ya vienen con omnigent)
+cd backend && python -m sparklab.api           # http://127.0.0.1:8787  (docs en /docs)
+cd ../frontend && npm install && npm run dev   # http://localhost:3000
+```
+Desde la UI (todo queda en el ledger con `origin: human` y firmado con tu nombre):
+- **Objetivo / "Start the lab"**: sube `lab.yaml` como agente a Omnigent, liga la sesión al host local, le manda el
+  objetivo al Supervisor y registra un `plan_update`. Equivale a `omnigent run lab.yaml -p "..."`.
+- **Pick**: tras A0 el Supervisor se detiene y la UI pide elegir la discrepancia; manda "Pursue E0x" y registra una `note`.
+- **Approve / Unseal**: mismo roce que el CLI: tecleas los 8 primeros caracteres del SHA-256 (del protocolo / del zip
+  sellado, según el ledger) y firmas. Un prefijo incorrecto no escribe nada. Los CLIs siguen funcionando igual.
+- **"Approved and unsealed"**: botón que avisa al Supervisor para la única corrida en el hold-out. **Decision**: `decision`.
+- **Chat**: mensajes libres al Supervisor (pestaña Activity → Chat).
+Notas:
+- Sin API arriba la UI reproduce el guion mock (MOCK DATA). `?mode=mock` fuerza el guion; `?mode=live` fuerza la API.
+- La API empareja la sesión por etiqueta `spark.study` (las que arranca la UI) o por workspace (= carpeta del estudio;
+  el estudio raíz acepta también la raíz del repo). Fijar una con `SPARK_OMNIGENT_SESSION=<id>`. Nunca se engancha a
+  sesiones de otro checkout. Variables: `SPARK_API_PORT`, `SPARK_OMNIGENT_URL`, `SPARKLAB_ROOT`, `SPARKLAB_STUDIES_DIR`.
+- **Varios estudios**: `New study` crea `backend/studies/<id>/` (ledger, board copiado, prereg; datos y zip sellado
+  enlazados del laboratorio raíz, con su propia entrada `seal`). El runner de Omnigent es compartido: sus tools
+  trabajan sobre el **estudio activo** (`backend/studies/ACTIVE`), que fija la UI al arrancar la sesión o
+  `python -m sparklab.studies use <id>`. Los CLIs (`approve`, `unseal`, `ledger`) también siguen ese puntero salvo
+  que `SPARKLAB_ROOT` esté definido. Un solo estudio con agentes a la vez.
+- Prueba: `python tests/test_bridge.py` (laboratorio sintético en un directorio temporal, nunca el ledger real).
+
 ## 3. Loop en vivo (16:15–17:00)
 ```bash
 omnigent run lab.yaml          # web UI: http://localhost:6767
@@ -44,7 +74,8 @@ Lo que debe verse: Skeptic atrapa E04 · gate de poder rechaza una celda chica �
 python -m sparklab.approve PR-xxxxxxxx --by Brau   # escribe los primeros 8 caracteres del hash
 python -m sparklab.unseal                          # José: verifica hash, procesa una sola vez
 ```
-Luego decirle al Supervisor: "approved and unsealed". El Experimenter corre `run_test(cycle="I")` una vez.
+O lo mismo desde la UI web (paso Run: tecleas el prefijo del hash y firmas). Luego decirle al Supervisor:
+"approved and unsealed" (botón en la UI o en el chat). El Experimenter corre `run_test(cycle="I")` una vez.
 
 ## 5. Cierre (17:20–18:00)
 ```bash

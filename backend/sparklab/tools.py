@@ -24,9 +24,10 @@ _CACHE = {}
 
 
 def _discovery() -> pd.DataFrame:
-    if "J" not in _CACHE:
-        _CACHE["J"] = data.load(C.DISCOVERY)
-    return _CACHE["J"]
+    key = (str(C.ROOT), C.DISCOVERY)  # one lab root per study; the cache must not leak across them
+    if key not in _CACHE:
+        _CACHE[key] = data.load(C.DISCOVERY)
+    return _CACHE[key]
 
 
 def _json(obj) -> str:

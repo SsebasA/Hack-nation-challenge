@@ -6,3 +6,7 @@ data/raw/
 data/processed/
 data/holdout/
 data/sealed/
+# Additional studies keep their own ledger/board/prereg under version control; their data is linked
+# from the root lab and the ACTIVE pointer is local machine state.
+studies/*/data/
+studies/ACTIVE

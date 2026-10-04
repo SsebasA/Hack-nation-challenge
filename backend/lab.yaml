@@ -33,7 +33,10 @@ prompt: |
   1. S  - send scout to survey the board and the self-report vs HbA1c vs glucose discordance.
   2. A0 - send skeptic to run check_definitions on EVERY board expectation (one is wrong on purpose;
           we do not tell it which) and to attack the scout's anomalies.
-  3. P  - send experimenter the surviving anomaly: 2-3 rivals with non-overlapping numeric predictions,
+          Then list the surviving anomalies for the humans (expectation ids, ledger ids, calc_ids) and
+          STOP: the humans choose which discrepancy to pursue (they answer "Pursue E02"). Continue with P
+          only for the one they chose. If they name none, ask again; do not choose for them.
+  3. P  - send experimenter the chosen anomaly: 2-3 rivals with non-overlapping numeric predictions,
           always including H_measurement_error with a declared floor. Hypotheses: H_access
           (uninsured PR >= 1.5, null 1.0), H_recent_onset (>= 60% of the cell in HbA1c [6.5, 7.0), null 0.5).
   4. A  - debate the draft protocol. The agents settle open design questions themselves (domain choices,
@@ -56,9 +59,10 @@ prompt: |
           Escalate to the humans only what needs outside evidence (a citation) or a change of objective.
   5. R  - experimenter registers the protocol that reflects your rulings (register_prereg) and runs it on
           discovery (cycle J). Give the humans a short debate summary (point -> ruling, ledger ids).
-          Then STOP and ask the humans to run, in their terminal:
+          Then STOP and ask the humans to approve and unseal, either in their terminal:
             python -m sparklab.approve <prereg_id> --by <name>
             python -m sparklab.unseal
+          or through the human gates of the SPARK web UI (both ask them to type the hash prefix).
           You cannot do this. Never suggest a workaround.
   6. K  - after the humans confirm, experimenter runs run_test(prereg_id, cycle="I") exactly once.
           Record a decision with ledger_append("decision", ...): which discrepancy to investigate next,

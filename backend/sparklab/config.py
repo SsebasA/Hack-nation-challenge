@@ -1,22 +1,93 @@
-"""SPARK Lab configuration. Thresholds here are fixed (CLAUDE.md rule 8)."""
+"""SPARK Lab configuration. Thresholds here are fixed (CLAUDE.md rule 8).
+
+Lab root. Every path below hangs from one root and is resolved on each access (PEP 562 module
+``__getattr__``), so one process can serve several labs ("studies"):
+
+1. ``use_root(path)`` — a context-local override for the API, which reads many studies at once;
+2. ``SPARKLAB_ROOT`` — environment variable (tests, rehearsals, CLIs run against a given lab);
+3. ``studies/ACTIVE`` — pointer file naming the study the shared Omnigent runner works on
+   (written by the API when a study's session starts, or by ``python -m sparklab.studies use``);
+4. the package parent (the original single lab, ``backend/``).
+
+Callers keep writing ``C.LEDGER_PATH`` etc.; nothing is frozen at import time.
+"""
+import contextlib
+import contextvars
 import os
 from pathlib import Path
 
-# Repo root. Overridable so the smoke test can run in a temp directory.
-ROOT = Path(os.environ.get("SPARKLAB_ROOT", Path(__file__).resolve().parent.parent))
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent   # backend/
+DEFAULT_STUDY_ID = "undiagnosed-diabetes"                # the root lab itself
 
-DATA_DIR = ROOT / "data"
-RAW_DIR = DATA_DIR / "raw"              # downloaded XPT (discovery only)
-PROCESSED_DIR = DATA_DIR / "processed"  # discovery cycle, derived columns
-SEALED_DIR = DATA_DIR / "sealed"        # hold-out zip, never processed except by unseal
-HOLDOUT_DIR = DATA_DIR / "holdout"      # written only by `python -m sparklab.unseal`
-SEALED_ZIP = SEALED_DIR / "nhanes_I.zip"
+_ROOT_OVERRIDE: contextvars.ContextVar[Path | None] = contextvars.ContextVar("sparklab_root", default=None)
 
-LEDGER_PATH = ROOT / "ledger" / "ledger.jsonl"
-CALCS_PATH = ROOT / "ledger" / "calcs.jsonl"   # every number an agent sees has a calc_id here
-PREREG_DIR = ROOT / "prereg"
-BOARD_PATH = ROOT / "board" / "expectations.json"
-CONTROL_PATH = ROOT / "board" / "control_seeded.json"
+
+def default_root() -> Path:
+    """The root lab: SPARKLAB_ROOT when set (tests, rehearsals), else backend/."""
+    env = os.environ.get("SPARKLAB_ROOT")
+    return Path(env) if env else PACKAGE_ROOT
+
+
+def studies_dir() -> Path:
+    """Where additional studies live (SPARKLAB_STUDIES_DIR overrides, for tests)."""
+    env = os.environ.get("SPARKLAB_STUDIES_DIR")
+    return Path(env) if env else PACKAGE_ROOT / "studies"
+
+
+def active_pointer() -> Path:
+    return studies_dir() / "ACTIVE"
+
+
+def resolve_root() -> Path:
+    override = _ROOT_OVERRIDE.get()
+    if override is not None:
+        return override
+    env = os.environ.get("SPARKLAB_ROOT")
+    if env:
+        return Path(env)
+    try:
+        sid = active_pointer().read_text(encoding="utf-8").strip()
+    except OSError:
+        sid = ""
+    if sid and sid != DEFAULT_STUDY_ID:
+        candidate = studies_dir() / sid
+        if candidate.is_dir():
+            return candidate
+    return PACKAGE_ROOT
+
+
+@contextlib.contextmanager
+def use_root(path: Path | str):
+    """Resolve every path under `path` inside this block (context-local, async-safe)."""
+    token = _ROOT_OVERRIDE.set(Path(path))
+    try:
+        yield Path(path)
+    finally:
+        _ROOT_OVERRIDE.reset(token)
+
+
+_DERIVED = {
+    "ROOT": lambda r: r,
+    "DATA_DIR": lambda r: r / "data",
+    "RAW_DIR": lambda r: r / "data" / "raw",              # downloaded XPT (discovery only)
+    "PROCESSED_DIR": lambda r: r / "data" / "processed",  # discovery cycle, derived columns
+    "SEALED_DIR": lambda r: r / "data" / "sealed",        # hold-out zip, never processed except by unseal
+    "HOLDOUT_DIR": lambda r: r / "data" / "holdout",      # written only by `python -m sparklab.unseal`
+    "SEALED_ZIP": lambda r: r / "data" / "sealed" / "nhanes_I.zip",
+    "LEDGER_PATH": lambda r: r / "ledger" / "ledger.jsonl",
+    "CALCS_PATH": lambda r: r / "ledger" / "calcs.jsonl",  # every number an agent sees has a calc_id here
+    "PREREG_DIR": lambda r: r / "prereg",
+    "BOARD_PATH": lambda r: r / "board" / "expectations.json",
+    "CONTROL_PATH": lambda r: r / "board" / "control_seeded.json",
+}
+
+
+def __getattr__(name: str):
+    try:
+        return _DERIVED[name](resolve_root())
+    except KeyError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
+
 
 # Cycles
 DISCOVERY = "J"   # NHANES 2017-2018
