@@ -344,8 +344,9 @@ class Fold:
                  "commit": (p.get("git_commit") or "")[:12], "path": p.get("path"), "ledgerId": e["id"],
                  "approvedBy": None, "holdoutHash": None}
         if protocol:
-            hyps = protocol.get("hypotheses", [])
-            rivals = protocol.get("rivals", [])
+            # register_prereg only freezes validated protocols, but a malformed file must not take the API down.
+            hyps = [h for h in protocol.get("hypotheses", []) if isinstance(h, dict)]
+            rivals = [r for r in protocol.get("rivals", []) if isinstance(r, dict)]
             first = hyps[0] if hyps else {}
             t = first.get("test", {})
             patch.update({
