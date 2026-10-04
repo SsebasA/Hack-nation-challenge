@@ -63,6 +63,11 @@ def calc_ids() -> set[str]:
 
 def main():
     shutil.copytree(BACKEND / "board", TMP / "board")
+
+    # The real board now carries cited values; blank E02 in this temp copy to exercise the null branch.
+    _b = json.loads((TMP / "board" / "expectations.json").read_text())
+    next(e for e in _b["expectations"] if e["id"] == "E02")["expected"] = None
+    (TMP / "board" / "expectations.json").write_text(json.dumps(_b))
     (TMP / "ledger").mkdir()
     subprocess.run(["git", "init", "-q"], cwd=TMP, check=True)
 

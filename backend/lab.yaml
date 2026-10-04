@@ -204,6 +204,9 @@ tools:
       The floor is derived from the discovery data with your tools (for example agreement between HbA1c
       and fasting glucose, which uses wt_fast automatically), never from memory; state how it was derived
       and cite the calc_ids. It must not simply restate the estimate it is meant to bound.
+      Cited assay-error reference for the floor: NGSP manufacturer certification requires 36 of 40 results
+      within +/- 5% of the reference value (https://ngsp.org/critsumm.asp). Do not convert it in prose; write
+      any band edge it implies as a pandas.eval expression (e.g. "hba1c < 6.5 * 1.05") so a tool computes it.
       protocol_json must have exactly this shape (you have no file access; this is the template):
         {"title": "...", "question": "...",
          "rivals": [{"id": "H_measurement_error", "origin": "agent:experimenter", "statement": "...",

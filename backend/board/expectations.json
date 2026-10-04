@@ -5,28 +5,52 @@
     {
       "id": "E01",
       "statement": "Total diabetes (diagnosed, or HbA1c >= 6.5%) among US adults",
-      "query": {"kind": "proportion", "domain": "", "outcome": "diag == 'yes' or hba1c >= 6.5", "category": ""},
-      "expected": null,
-      "source": {"citation": "TODO: CDC National Diabetes Statistics Report", "url": null},
-      "comparability": "TODO",
+      "query": {
+        "kind": "proportion",
+        "domain": "",
+        "outcome": "diag == 'yes' or hba1c >= 6.5",
+        "category": ""
+      },
+      "expected": 0.132,
+      "source": {
+        "citation": "CDC National Diabetes Statistics Report, Appendix A: Detailed Tables (NHANES 2017-March 2020), Table 1, total diabetes, 13.2% (95% CI 12.0-14.5)",
+        "url": "https://archive.cdc.gov/www_cdc_gov/diabetes/php/data-research/appendix.html"
+      },
+      "comparability": "partial: CDC is age-adjusted, adults >= 18, diagnosed or HbA1c >= 6.5 or fasting glucose >= 126; ours is crude, adults >= 20 not pregnant, HbA1c only; CDC years overlap our discovery cycle J",
       "note": "pipeline check"
     },
     {
       "id": "E02",
       "statement": "Undiagnosed diabetes (reports no diagnosis, HbA1c >= 6.5%) among US adults",
-      "query": {"kind": "proportion", "domain": "", "outcome": "diag == 'no' and hba1c >= 6.5", "category": "undiagnosed_diabetes"},
-      "expected": null,
-      "source": {"citation": "TODO: CDC National Diabetes Statistics Report", "url": null},
-      "comparability": "TODO",
+      "query": {
+        "kind": "proportion",
+        "domain": "",
+        "outcome": "diag == 'no' and hba1c >= 6.5",
+        "category": "undiagnosed_diabetes"
+      },
+      "expected": 0.031,
+      "source": {
+        "citation": "CDC National Diabetes Statistics Report, Appendix A: Detailed Tables (NHANES 2017-March 2020), Table 1, undiagnosed diabetes, 3.1% (95% CI 2.6-3.8)",
+        "url": "https://archive.cdc.gov/www_cdc_gov/diabetes/php/data-research/appendix.html"
+      },
+      "comparability": "partial: CDC is age-adjusted, adults >= 18, HbA1c >= 6.5 or fasting glucose >= 126 without reported diagnosis; ours is crude, adults >= 20 not pregnant, HbA1c only; CDC years overlap our discovery cycle J",
       "note": "pipeline check"
     },
     {
       "id": "E03",
       "statement": "Prediabetes by HbA1c (5.7-6.4%) among adults without diagnosed diabetes",
-      "query": {"kind": "proportion", "domain": "diag == 'no' or diag == 'borderline'", "outcome": "hba1c >= 5.7 and hba1c < 6.5", "category": "prediabetes"},
-      "expected": null,
-      "source": {"citation": "TODO: CDC National Diabetes Statistics Report", "url": null},
-      "comparability": "TODO",
+      "query": {
+        "kind": "proportion",
+        "domain": "diag == 'no' or diag == 'borderline'",
+        "outcome": "hba1c >= 5.7 and hba1c < 6.5",
+        "category": "prediabetes"
+      },
+      "expected": 0.365,
+      "source": {
+        "citation": "CDC National Diabetes Statistics Report, Appendix A: Detailed Tables (NHANES 2017-March 2020), Table 5, prediabetes definition 1, 36.5% (95% CI 34.2-38.8)",
+        "url": "https://archive.cdc.gov/www_cdc_gov/diabetes/php/data-research/appendix.html"
+      },
+      "comparability": "low: CDC is age-adjusted, all adults >= 18 including diagnosed diabetes, HbA1c 5.7-6.4 or fasting glucose 100-125; ours is crude, adults >= 20 reporting no or borderline diagnosis, HbA1c only; CDC years overlap our discovery cycle J",
       "note": "pipeline check"
     }
   ]
