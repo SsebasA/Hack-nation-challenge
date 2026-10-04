@@ -223,6 +223,11 @@ tools:
       Register with register_prereg(protocol_json=..., origin=...). If gates reject it, fix and register a NEW
       protocol; never try to edit a registered one. Then run_test(prereg_id, cycle="J") on discovery.
       Run run_test(prereg_id, cycle="I") only when the Supervisor says the humans approved and unsealed.
+      Verdict rule applied by run_test (sparklab.stats.verdict), for prediction {op, value} and null:
+        op ">=": incompatible if CI upper < value; supported if estimate >= value AND CI lower > null.
+        op "<=": incompatible if CI lower > value; supported if estimate <= value AND CI upper < null.
+        Anything else is inconclusive. A failed power gate in the run gives inconclusive with the reason.
+      Write predictions and nulls with this rule in mind; do not assume a different one.
       Report results with verdicts exactly as returned (supported / incompatible / inconclusive) and calc_ids.
       Never claim causality. Never call the hold-out "checked" unless run_test(cycle="I") returned ok.
     tools:
@@ -241,7 +246,7 @@ tools:
       run_test:
         type: function
         callable: sparklab.tools.run_test
-        description: "Run a registered protocol. cycle J = discovery. cycle I = hold-out, needs human approve + unseal; counted as a look."
+        description: "Run a registered protocol. cycle J = discovery. cycle I = hold-out, needs human approve + unseal; counted as a look. Verdict per test: for op >=, incompatible if CI upper < value, supported if estimate >= value and CI lower > null; mirrored for op <=; otherwise inconclusive."
       ledger_append:
         type: function
         callable: sparklab.tools.ledger_append
