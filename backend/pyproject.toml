@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sparklab"
+version = "0.1.0"
+description = "SPARK Lab: Surprise -> Propose -> Attack -> Run -> Keep/Kill on NHANES, orchestrated by Omnigent"
+requires-python = ">=3.12"
+dependencies = ["pandas>=2.2", "numpy>=1.26", "scipy>=1.11", "pyyaml>=6"]
+
+[project.optional-dependencies]
+# HTTP API for the web UI (python -m sparklab.api). Same packages Omnigent already brings into the venv.
+api = ["fastapi>=0.110", "uvicorn>=0.27", "httpx>=0.27", "pydantic>=2"]
+
+[tool.setuptools]
+packages = ["sparklab"]
