@@ -103,6 +103,9 @@ def main():
     assert any("H_measurement_error" in d for d in r["details"]), r
     r = refused({**PROTOCOL, "rivals": [{"id": "H_measurement_error", "origin": "human"}]})
     assert any("floor" in d for d in r["details"]), r
+    for empty in (None, "", "   "):  # an empty floor is not a declared floor (seen in the Step 10 live run)
+        r = refused({**PROTOCOL, "rivals": [{"id": "H_measurement_error", "origin": "human", "floor": empty}]})
+        assert any("floor" in d for d in r["details"]), (empty, r)
     r = refused({**PROTOCOL, "hypotheses": [H_ACCESS]})
     assert any(">= 2" in d for d in r["details"]), r
     # Malformed shapes (seen in the Step 10 live run) are refused cleanly, not crashed on.

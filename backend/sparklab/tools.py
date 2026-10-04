@@ -317,7 +317,7 @@ def _validate_protocol(p: dict) -> list[str]:
     if not any(i.startswith("H_measurement_error") for i in ids):
         errs.append("mandatory rival H_measurement_error (with declared floor) missing")
     for r in p.get("rivals", []):
-        if r.get("id", "").startswith("H_measurement_error") and "floor" not in r:
+        if r.get("id", "").startswith("H_measurement_error") and not str(r.get("floor") or "").strip():
             errs.append("H_measurement_error needs a declared 'floor'")
     for h in hyps:
         hid = h.get("id", "?")
