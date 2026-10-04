@@ -5,7 +5,7 @@
 
 import type { GateId, LoggedEvent, StageId } from "@/lib/spark/types"
 
-export const API_URL = (process.env.NEXT_PUBLIC_SPARK_API_URL ?? "http://127.0.0.1:8787").replace(/\/$/, "")
+export const API_URL = (process.env.SPARK_API_URL ?? "http://127.0.0.1:8787").replace(/\/$/, "")
 
 export type LabStatus = {
   root: string
