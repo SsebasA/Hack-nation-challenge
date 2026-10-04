@@ -8,7 +8,8 @@ Environment:
     SPARK_OMNIGENT_URL                     local Omnigent server (default http://127.0.0.1:6767)
     SPARK_OMNIGENT_SESSION                 pin the default study's session id (otherwise matched by
                                            label / workspace, see Omni.pick_session_for)
-    SPARK_UI_ORIGIN                        extra CORS origin (default allows localhost:3000)
+    SPARK_UI_ORIGIN                        extra CORS origin(s), comma-separated (localhost:3000 is always allowed)
+    SPARKLAB_HOME                          where the root lab's records live (default backend/; a volume in deploys)
     SPARK_LAB_MODE=fast                    new sessions run the fast-mode spec (sparklab.fastlab)
     SPARK_FAST_MODEL                       with fast mode: pin this model on every executor
 
@@ -386,8 +387,7 @@ app = FastAPI(title="SPARK Lab API", version="0.2.0", lifespan=lifespan,
                           "gates (objective, pick, approve, unseal, decision) and drive its Omnigent session.")
 
 _origins = {"http://localhost:3000", "http://127.0.0.1:3000"}
-if os.environ.get("SPARK_UI_ORIGIN"):
-    _origins.add(os.environ["SPARK_UI_ORIGIN"])
+_origins.update(o.strip().rstrip("/") for o in os.environ.get("SPARK_UI_ORIGIN", "").split(",") if o.strip())
 app.add_middleware(CORSMiddleware, allow_origins=sorted(_origins), allow_methods=["*"], allow_headers=["*"])
 
 
@@ -416,7 +416,7 @@ class NewStudy(BaseModel):
 @app.get("/health")
 async def health():
     reg = _reg()
-    return {"status": "ok", "root": str(C.PACKAGE_ROOT), "studies": len(studies.list_studies()),
+    return {"status": "ok", "root": str(C.default_root()), "studies": len(studies.list_studies()),
             "active_study": studies.active_id(), "omnigent": {"url": OMNI_URL, "reachable": reg.omni.reachable},
             "lab_mode": fastlab.mode()}
 

@@ -7,7 +7,8 @@ Lab root. Every path below hangs from one root and is resolved on each access (P
 2. ``SPARKLAB_ROOT`` — environment variable (tests, rehearsals, CLIs run against a given lab);
 3. ``studies/ACTIVE`` — pointer file naming the study the shared Omnigent runner works on
    (written by the API when a study's session starts, or by ``python -m sparklab.studies use``);
-4. the package parent (the original single lab, ``backend/``).
+4. the lab home: ``SPARKLAB_HOME`` when set (a mounted volume in deployments: the code stays in the
+   image, the records live on the volume), else the package parent (the original single lab, ``backend/``).
 
 Callers keep writing ``C.LEDGER_PATH`` etc.; nothing is frozen at import time.
 """
@@ -22,16 +23,22 @@ DEFAULT_STUDY_ID = "undiagnosed-diabetes"                # the root lab itself
 _ROOT_OVERRIDE: contextvars.ContextVar[Path | None] = contextvars.ContextVar("sparklab_root", default=None)
 
 
-def default_root() -> Path:
-    """The root lab: SPARKLAB_ROOT when set (tests, rehearsals), else backend/."""
-    env = os.environ.get("SPARKLAB_ROOT")
+def lab_home() -> Path:
+    """Where the root lab's records live: SPARKLAB_HOME when set (deployments), else backend/."""
+    env = os.environ.get("SPARKLAB_HOME")
     return Path(env) if env else PACKAGE_ROOT
+
+
+def default_root() -> Path:
+    """The root lab: SPARKLAB_ROOT when set (tests, rehearsals), else the lab home."""
+    env = os.environ.get("SPARKLAB_ROOT")
+    return Path(env) if env else lab_home()
 
 
 def studies_dir() -> Path:
     """Where additional studies live (SPARKLAB_STUDIES_DIR overrides, for tests)."""
     env = os.environ.get("SPARKLAB_STUDIES_DIR")
-    return Path(env) if env else PACKAGE_ROOT / "studies"
+    return Path(env) if env else lab_home() / "studies"
 
 
 def active_pointer() -> Path:
@@ -53,7 +60,7 @@ def resolve_root() -> Path:
         candidate = studies_dir() / sid
         if candidate.is_dir():
             return candidate
-    return PACKAGE_ROOT
+    return lab_home()
 
 
 @contextlib.contextmanager

@@ -1,0 +1,11 @@
+# The image carries code only; the lab's records are created on the volume by deploy/start.sh.
+**/__pycache__
+*.egg-info
+data/
+ledger/
+prereg/
+studies/
+studies_archive/
+tests/
+lab.fast.yaml
+.venv/
