@@ -149,6 +149,15 @@ class Fold:
             self.stage_idx = idx
             self.emit(at, {"kind": "stage", "stage": stage})
 
+    def agent_progress(self, at: int, actor: str):
+        """Stages the ledger alone does not show: P and A leave no hypothesis entry until just before
+        registration. Rule (lab.yaml loop): the experimenter only works from P on (Propose + Run), and the
+        skeptic working once P has started is the A debate (the skeptic does not take part in S)."""
+        if actor == "experimenter":
+            self.stage(at, "propose")
+        elif actor == "skeptic" and self.stage_idx >= STAGES.index("propose"):
+            self.stage(at, "attack")
+
     @property
     def current_stage(self) -> str:
         return STAGES[self.stage_idx]
@@ -190,6 +199,7 @@ class Fold:
         t, origin, p = e["type"], e["origin"], e.get("payload") or {}
         actor = actor_of(origin)
         summary = self._summary(t, p)
+        self.agent_progress(at, actor)
         self.emit(at, {"kind": "ledger", "id": e["id"], "type": t, "origin": origin,
                        "summary": summary, "hash": short_hash(e.get("hash"))})
         handler = getattr(self, f"_ledger_{t}", None)
@@ -283,7 +293,10 @@ class Fold:
         # The skeptic's call describes the TARGET: holds -> the target survives this check.
         passed = call in ("holds", "withdraw", "withdrawn", "refuted", "pass", "passed")
         targets = [h for h in self.hypotheses if h.lower() in blob]
-        exp_ids = [x for x in set(_EXP_ID.findall(json.dumps(p, ensure_ascii=False))) if x in self.expectations]
+        # Board items the attack is ABOUT: only its target fields. The rest of the payload routinely names
+        # other items ("E01-E03 clean; E04 not clean"), and those must not be marked.
+        target_text = json.dumps([p.get(k) for k in ("target", "targets", "expectation_id", "expectation_ids")], ensure_ascii=False)
+        exp_ids = [x for x in set(_EXP_ID.findall(target_text)) if x in self.expectations]
         if targets:
             self.stage(at, "attack")
             for hid in targets:
@@ -292,7 +305,9 @@ class Fold:
                 if self.hypotheses[hid].get("status") in (None, "proposed"):
                     self._upsert_hypothesis(at, {"id": hid, "status": "under_attack"})
         for eid in exp_ids:
-            if kind == "definition" and (call in ("fatal", "error") or re.search(r"wrong|error|disagree|mix", blob)):
+            # Only the Skeptic's own call blocks an item; words like "measurement error" in a weak/holds
+            # attack do not (the board item then stays pickable).
+            if kind == "definition" and call in ("fatal", "error"):
                 self._patch_expectation(at, eid, {"status": "definition_error",
                                                   "note": text or "definition error (Skeptic)"})
         title = f"Attack: {text}" if text else f"Attack ({kind})"
@@ -446,6 +461,7 @@ class Fold:
         kind, origin, inputs, res = c["kind"], c.get("origin", "agent:supervisor"), c.get("inputs", {}), c.get("result", {})
         actor = actor_of(origin)
         cid = c["calc_id"]
+        self.agent_progress(at, actor)
         if kind == "surprise":
             self.stage(at, "surprise")
             self.surprise_calcs += 1
@@ -503,6 +519,7 @@ class Fold:
     def apply_omnigent_item(self, item: dict, actor: str):
         at = int(float(item.get("created_at", 0)) * 1000)
         t = item.get("type")
+        self.agent_progress(at, actor)
         if t == "message":
             text = " ".join(part.get("text", "") for part in item.get("content", []) if isinstance(part, dict)).strip()
             if not text:
@@ -541,6 +558,7 @@ class Fold:
                     except json.JSONDecodeError:
                         inner = {"raw": inner}
                 if target in AGENTS:
+                    self.agent_progress(at, target)
                     task = compact(pick(args, "message", "prompt", "text", "task", default=""), 200)
                     self.activity(at, actor, "handoff", f"Delegated to {target}" + (f": {task}" if task else ""),
                                   detail=compact(args, 600))
@@ -619,6 +637,11 @@ class Fold:
         if self.prereg_id is None:
             if not (self.human_objective or has_session_input):
                 return "objective"
+            # The skeptic checks the board definitions only in A, after the pick: if the chosen item turns
+            # out to be a definition error, the humans choose again (the Supervisor stops for it).
+            if (self.human_pick and self.expectations.get(self.human_pick, {}).get("status") == "definition_error"
+                    and (session_idle is None or session_idle)):
+                return "pick-surprise"
             # The board has been evaluated, no hypothesis exists yet and the Supervisor is not busy:
             # the humans choose which discrepancy to pursue.
             if (self.surprise_calcs > 0 and not self.hypotheses and self.human_pick is None

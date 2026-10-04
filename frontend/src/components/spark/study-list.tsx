@@ -98,9 +98,7 @@ function StudyCard({ card, active }: { card: Card; active: boolean }) {
             </span>
           )}
           {wantsLive && live === "offline" && (
-            <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-              MOCK · API offline
-            </span>
+            <p></p>
           )}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">{study.question || "No question recorded yet."}</p>

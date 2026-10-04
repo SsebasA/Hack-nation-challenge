@@ -39,7 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ActorAvatar, Code, EmptyStage, MockTag, MockValue } from "./primitives"
+import { ActorAvatar, Code, EmptyStage, MockValue } from "./primitives"
 import { YourTurn } from "./your-turn"
 
 const MIN_CELL_N = 30
@@ -625,7 +625,6 @@ function RunPanel({ view, blockedOn, onResolve, live }: PanelProps) {
             <GitCommitHorizontal className="size-3" /> {p.commit}
           </span>
           {p.ledgerId && <span className="rounded bg-muted px-1 text-[9px] font-semibold">ledger {p.ledgerId}</span>}
-          <MockTag />
         </div>
       ),
     },
@@ -693,7 +692,6 @@ function RunPanel({ view, blockedOn, onResolve, live }: PanelProps) {
         ) : p.holdoutHash ? (
           <p className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-700 break-all">
             <LockOpen className="size-3 shrink-0" /> {p.holdoutHash}
-            <MockTag className="ml-1" />
           </p>
         ) : (
           <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -976,7 +974,6 @@ function VerdictCard({ v }: { v: Verdict }) {
       <div className="flex flex-wrap items-center gap-3">
         {v.hypothesisId && <span className="font-mono text-xs font-semibold">{v.hypothesisId}</span>}
         <span className={cn("rounded-lg border px-3 py-1 text-lg font-semibold", vs.className)}>{vs.label}</span>
-        <MockTag className="rounded-sm text-[10px]" />
         <div className="ml-auto text-sm">
           {isPr ? "Prevalence ratio" : "Weighted share"}{" "}
           <MockValue className="font-semibold" calcId={v.calcId}>

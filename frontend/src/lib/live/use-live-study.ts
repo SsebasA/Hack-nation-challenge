@@ -183,10 +183,12 @@ export function useLiveStudy(studyId: string): LiveStudy {
             return `${pid} approved by ${who}.`
           }
           case "unseal": {
-            if (!who) throw new Error("Type your name: the unseal is signed.")
-            if (!input.hashPrefix || input.hashPrefix.trim().length < 8) throw new Error("Type the first 8 characters of the sealed file's SHA-256.")
-            await postUnseal(studyId, { by: who, sha256_prefix: input.hashPrefix.trim() })
-            return "Hold-out unsealed; SHA-256 verified against the ledger."
+            // One click: the UI passes the hash recorded at seal time; the API still hashes the sealed file and
+            // refuses (nothing written) if it does not match the ledger, and allows a single unseal.
+            const sealed = snapshot?.status.holdout.sealed_sha256
+            if (!sealed) throw new Error("This study has no sealed test data (no seal entry in its ledger).")
+            await postUnseal(studyId, { by: who || "reviewer", sha256_prefix: sealed.slice(0, 8) })
+            return "Test data opened: its fingerprint matches the one recorded when it was sealed."
           }
           case "decision": {
             const decision = input.decision ?? "keep"

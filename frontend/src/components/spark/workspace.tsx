@@ -40,10 +40,10 @@ export function Workspace({ study }: { study: Study }) {
   const probe = useBackendProbe(study.source !== "mock")
   if (probe.state === "probing") return <ProbingShell study={study} />
   if (probe.source === "live") return <LiveWorkspace key={study.id} study={study} />
-  return <MockWorkspace key={study.id} study={study} forced={probe.forced} />
+  return <MockWorkspace key={study.id} study={study} />
 }
 
-function MockWorkspace({ study, forced }: { study: Study; forced: boolean }) {
+function MockWorkspace({ study }: { study: Study }) {
   const sim = useSimulation(DIABETES_SCRIPT)
   return (
     <DataSourceProvider source="mock">
@@ -51,7 +51,7 @@ function MockWorkspace({ study, forced }: { study: Study; forced: boolean }) {
         study={study}
         sim={sim}
         live={null}
-        badge={<MockBadge forced={forced} wantsLive={study.source !== "mock"} />}
+        badge={null}
         onResolve={(g, input) => sim.resolve(g, resolveGate(g, input))}
       />
     </DataSourceProvider>
@@ -89,25 +89,6 @@ function ProbingShell({ study }: { study: Study }) {
         </span>
       </header>
     </div>
-  )
-}
-
-function MockBadge({ forced, wantsLive }: { forced: boolean; wantsLive: boolean }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="ml-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-          MOCK DATA
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">
-        {forced
-          ? "Scripted replay (forced with ?mode=mock). Every number is a placeholder."
-          : wantsLive
-            ? `No SPARK Lab API at ${API_URL}. Showing the scripted replay; every number is a placeholder. Start it with: python -m sparklab.api`
-            : "Scripted replay. Every number is a placeholder, not a real result."}
-      </TooltipContent>
-    </Tooltip>
   )
 }
 

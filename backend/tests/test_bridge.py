@@ -101,6 +101,46 @@ def http(method, url, body=None, timeout=15):
         return e.code, json.loads(e.read() or b"null")
 
 
+def stage_from_agents(bridge):
+    """P and A leave no hypothesis entry until registration: the stage follows which sub-agent works."""
+    f = bridge.Fold()
+
+    def msg(actor, t, text="working"):
+        f.apply_omnigent_item({"type": "message", "role": "assistant", "created_at": t,
+                               "content": [{"type": "text", "text": text}]}, actor)
+
+    msg("scout", 1)
+    msg("supervisor", 2, "anomalies listed; waiting for the humans to pick")
+    check(f.current_stage == "surprise", "scout + supervisor during S stay in surprise")
+    f.apply_omnigent_item({"type": "function_call", "name": "sys_session_send", "created_at": 3,
+                           "arguments": json.dumps({"agent": "experimenter", "message": "draft rivals for E03"})}, "supervisor")
+    check(f.current_stage == "propose", "brief to the experimenter -> propose")
+    msg("skeptic", 4, "attacking the draft protocol")
+    check(f.current_stage == "attack", "skeptic after propose -> attack")
+    msg("experimenter", 5, "rebuttal with calc ids")
+    check(f.current_stage == "attack", "experimenter answering attacks does not move the stage back")
+
+
+def definition_errors_only_on_target(bridge):
+    """Only a fatal definition attack blocks a board item, and only the item it targets."""
+    f = bridge.Fold()
+    f.add_board(0)
+
+    def attack(n, payload):
+        f.apply_ledger({"id": f"L{n:04d}", "ts": "2026-01-01T00:00:00+00:00", "type": "attack",
+                        "origin": "agent:skeptic", "payload": payload, "hash": "x"})
+
+    attack(1, {"target": "board:E04", "check": "check_definitions on E01-E04 (all run; E01,E02,E03 clean; E04 not clean)",
+               "call": "fatal", "finding": "outcome 'hba1c < 6.5' labelled 'normal' disagrees with ADA"})
+    attack(2, {"target": "E02", "check": "check_definitions + numerator scope", "call": "weak",
+               "finding": "clean on thresholds; measurement error from a single HbA1c"})
+    attack(3, {"target": "L0005", "check": ["definitions (check_definitions E02,E03 clean)", "power"], "call": "fatal"})
+    status = {k: v["status"] for k, v in f.expectations.items()}
+    check(status["E04"] == "definition_error", "fatal definition attack on E04 blocks E04")
+    check(all(status[e] != "definition_error" for e in ("E01", "E02", "E03")),
+          f"items only mentioned, or attacked with a weak call, stay pickable: {status}")
+
+
 def main():
     shutil.copytree(BACKEND / "board", TMP / "board")
     (TMP / "ledger").mkdir()
@@ -108,6 +148,9 @@ def main():
 
     from sparklab import bridge, data, ledger, studies, tools
     from sparklab import config as C
+
+    stage_from_agents(bridge)
+    definition_errors_only_on_target(bridge)
 
     write_raw(synth("J", 1), "J", TMP / "raw_J")
     write_raw(synth("I", 2), "I", TMP / "raw_I")
@@ -166,30 +209,37 @@ def main():
         check(s["gate"] is None and s["objective"].startswith("Find which"), "objective closes the gate")
         check(events_of(s, "objective"), "objective event emitted")
 
-        # ---- S: scout surprise calcs; A0: skeptic finds the seeded definition error ----
+        # ---- S: scout only (the skeptic does not take part in S) ----
         for eid in ("E01", "E02", "E03", "E04"):
             j(tools.compute_surprise(eid, "agent:scout"))
-        ctl = j(tools.check_definitions("agent:skeptic", expectation_id="E04"))
-        j(tools.ledger_append("attack", json.dumps({"target": "E04", "check": "check_definitions", "call": "fatal",
-                                                     "text": ctl["issues"][0]["issue"]}), "agent:skeptic"))
         j(tools.ledger_append("anomaly", json.dumps({"title": "self-report vs HbA1c discordance", "expectations": ["E02"],
                                                       "calc_ids": ["calc_00002"]}), "agent:scout"))
         snap = bridge.snapshot()
         exps = folded(snap, "expectation")
-        check(exps["E04"]["status"] == "definition_error" and "5.7" in (exps["E04"].get("note") or ""),
-              f"E04 marked definition_error from the Skeptic's attack: {exps['E04'].get('note', '')[:60]}…")
         check(all(exps[e]["status"] in ("consistent", "discrepancy") and exps[e].get("observed") and exps[e].get("calcId")
                   for e in ("E01", "E02", "E03")), "E01-E03 carry observed value + calc_id from surprise calcs")
+        check(not any(x["status"] == "definition_error" for x in exps.values()), "nothing blocked before the skeptic runs in A")
         check(snap["gate"] == "pick-surprise", "board evaluated, no hypotheses, no Supervisor session -> humans pick")
         check(snap["events"][-1]["at"] >= snap["events"][0]["at"], "events are time-ordered")
 
-        # ---- humans pick which discrepancy to pursue (API) ----
+        # ---- humans pick (API): first the seeded item, which the skeptic rejects at the start of A ----
         check(http("POST", f"{S}/pick", {"expectation_id": "E99"})[0] == 400, "pick refuses unknown expectation ids")
-        code, p = http("POST", f"{S}/pick", {"expectation_id": "E02", "text": "largest gap", "by": "ui-human"})
+        code, p = http("POST", f"{S}/pick", {"expectation_id": "E04", "by": "ui-human"})
         check(code == 201 and p["entry"]["payload"]["action"] == "pick_surprise" and p["sent"] is None,
               "pick recorded as a human note; nothing sent (no session)")
         s = state()
-        check(s["gate"] is None and s["pick"] == "E02", "pick closes the gate")
+        check(s["gate"] is None and s["pick"] == "E04", "pick closes the gate")
+        ctl = j(tools.check_definitions("agent:skeptic", expectation_id="E04"))
+        j(tools.ledger_append("attack", json.dumps({"target": "E04", "check": "check_definitions", "call": "fatal",
+                                                     "text": ctl["issues"][0]["issue"]}), "agent:skeptic"))
+        s = state()
+        exps = folded(s, "expectation")
+        check(exps["E04"]["status"] == "definition_error" and "5.7" in (exps["E04"].get("note") or ""),
+              f"E04 marked definition_error from the Skeptic's attack: {exps['E04'].get('note', '')[:60]}…")
+        check(s["gate"] == "pick-surprise", "chosen item is a definition error -> humans choose again")
+        code, p = http("POST", f"{S}/pick", {"expectation_id": "E02", "text": "largest gap", "by": "ui-human"})
+        s = state()
+        check(code == 201 and s["gate"] is None and s["pick"] == "E02", "a valid second pick closes the gate")
         check(any(c["from"] == "human" and c["text"].startswith("Pursue E02") for c in events_of(s, "chat")), "pick shows as chat")
 
         # ---- P: hypotheses; A: a protocol rejected by the power gate ----
@@ -347,8 +397,8 @@ def main():
               "/studies lists the default study with its summary")
         check(http("POST", f"{base}/studies", {"title": "   "})[0] == 400, "a study needs a title")
         n_root = len(ledger.read())
-        code, cr = http("POST", f"{base}/studies", {"title": "Hypertension awareness gap", "question": "Which subgroups?", "by": "Brau"})
-        check(code == 201 and cr["study"]["id"] == "hypertension-awareness-gap" and cr["study"]["gate"] == "objective",
+        code, cr = http("POST", f"{base}/studies", {"title": "Diabetes among uninsured adults", "question": "Which subgroups?", "by": "Brau"})
+        check(code == 201 and cr["study"]["id"] == "diabetes-among-uninsured-adults" and cr["study"]["gate"] == "objective",
               f"study created: {cr['study']['id']} (waits for an objective)")
         sid2 = cr["study"]["id"]
         root2 = TMP / "studies" / sid2
@@ -368,7 +418,7 @@ def main():
               "activate writes the ACTIVE pointer for the shared runner")
         check(str(C.ROOT) == str(TMP), "SPARKLAB_ROOT still wins over the pointer in this process")
         check(http("GET", f"{base}/studies/nope")[0] == 404, "unknown study -> 404")
-        code, cr2 = http("POST", f"{base}/studies", {"title": "Hypertension awareness gap", "copy_board": False})
+        code, cr2 = http("POST", f"{base}/studies", {"title": "Diabetes among uninsured adults", "copy_board": False})
         check(code == 201 and cr2["study"]["id"] == f"{sid2}-2", "duplicate titles get a numbered id")
         code, b3 = http("GET", f"{base}/studies/{cr2['study']['id']}/board")
         check(code == 200 and b3["expectations"] == [], "copy_board=false starts with an empty board")
@@ -381,7 +431,7 @@ def main():
 
     real_studies = BACKEND / "studies"
     check(str(C.LEDGER_PATH).startswith(str(TMP)) and (not real_studies.exists() or
-          not any(p.name.startswith("hypertension") for p in real_studies.iterdir())),
+          not any(p.name.startswith("diabetes-among-uninsured") for p in real_studies.iterdir())),
           "nothing was created under the real backend/studies")
     shutil.rmtree(TMP, ignore_errors=True)
     print("OK")

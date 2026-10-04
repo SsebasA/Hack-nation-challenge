@@ -42,7 +42,7 @@ cd ../frontend && npm install && npm run dev   # http://localhost:3000
 Desde la UI (todo queda en el ledger con `origin: human` y firmado con tu nombre):
 - **Objetivo / "Start the lab"**: sube `lab.yaml` como agente a Omnigent, liga la sesión al host local, le manda el
   objetivo al Supervisor y registra un `plan_update`. Equivale a `omnigent run lab.yaml -p "..."`.
-- **Pick**: tras A0 el Supervisor se detiene y la UI pide elegir la discrepancia; manda "Pursue E0x" y registra una `note`.
+- **Pick**: tras S (solo el Scout) el Supervisor se detiene y la UI pide elegir la discrepancia; manda "Pursue E0x" y registra una `note`.
 - **Approve / Unseal**: mismo roce que el CLI: tecleas los 8 primeros caracteres del SHA-256 (del protocolo / del zip
   sellado, según el ledger) y firmas. Un prefijo incorrecto no escribe nada. Los CLIs siguen funcionando igual.
 - **"Approved and unsealed"**: botón que avisa al Supervisor para la única corrida en el hold-out. **Decision**: `decision`.
@@ -58,6 +58,11 @@ Notas:
   `python -m sparklab.studies use <id>`. Los CLIs (`approve`, `unseal`, `ledger`) también siguen ese puntero salvo
   que `SPARKLAB_ROOT` esté definido. Un solo estudio con agentes a la vez.
 - Prueba: `python tests/test_bridge.py` (laboratorio sintético en un directorio temporal, nunca el ledger real).
+- **Ensayo rápido sin LLM** (UI completa en ~2 min, datos sintéticos en `/tmp/spark-ui-rehearsal`):
+  `python tests/rehearsal.py` (tú das los gates en la UI) o `--auto-gates` (sin intervención).
+- **Modo rápido con agentes reales** (mismos gates y reglas; máx. 3 anomalías, 3 ataques, debate de 1 ronda):
+  `SPARK_LAB_MODE=fast SPARK_FAST_MODEL=<modelo> python -m sparklab.api`, luego **New study** → Start the lab.
+  Por CLI: `python -m sparklab.fastlab --model <modelo>` y `omnigent run lab.fast.yaml` (generado, no se edita).
 
 ## 3. Loop en vivo (16:15–17:00)
 ```bash
@@ -67,7 +72,7 @@ Primer mensaje sugerido:
 > Objective: find which discrepancy between self-reported diagnosis and HbA1c to investigate next among
 > US adults. Run the SPARK loop. Stop and ask us before anything touches the hold-out.
 
-Lo que debe verse: Skeptic atrapa E04 · gate de poder rechaza una celda chica · prereg con hash + commit.
+Lo que debe verse: al inicio de A el Skeptic atrapa E04 (si elegiste E04, la UI pide elegir otra) · gate de poder rechaza una celda chica · prereg con hash + commit.
 
 ## 4. Gates humanos, en cámara (17:00–17:20)
 ```bash

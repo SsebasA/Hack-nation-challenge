@@ -27,7 +27,7 @@ functions above. Sub-agents run with `pass_history: false` so each starts indepe
 | Definitions | `tools.check_definitions` | non-ADA category thresholds, wrong weights, banned labels; flags causal wording and race/ethnicity |
 | Mandatory rival | `tools.register_prereg` | protocols without `H_measurement_error` and a declared floor |
 | Human-only actions | `approve.py`, `unseal.py` (TTY + typed hash prefix) and `api.py` `POST /studies/{id}/approve\|unseal` (typed hash prefix + signature; agents have no network tools) | agents approving or unsealing |
-| Human pick | `api.py` `POST /studies/{id}/pick` + Supervisor prompt (stop after A0) | the agents choosing which discrepancy matters |
+| Human pick | `api.py` `POST /studies/{id}/pick` + Supervisor prompt (stop after S; again if the pick is a definition error) | the agents choosing which discrepancy matters |
 | Ledger integrity | `ledger.verify` (hash chain) | hand edits, deletions, reordering |
 | Number provenance | `ledger/calcs.jsonl` | numbers without a `calc_id` (warned on `ledger_append`) |
 

@@ -7,7 +7,7 @@ import type { Actor, AgentStatus, StageId } from "@/lib/spark/types"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 // A statistic, labelled by where it came from. In the scripted replay every number is a placeholder
-// and is tagged MOCK. In live mode numbers are copied from tool outputs and carry their calc_id
+// (dashed underline; the tooltip says so). In live mode numbers are copied from tool outputs and carry their calc_id
 // (ledger/calcs.jsonl), so "no number without a tool" stays visible in the UI.
 export function MockValue({ children, className, calcId }: { children: React.ReactNode; className?: string; calcId?: string }) {
   const source = useDataSource()
@@ -24,7 +24,6 @@ export function MockValue({ children, className, calcId }: { children: React.Rea
       <TooltipTrigger asChild>
         <span className={cn("inline-flex items-baseline gap-1 tabular-nums", className)}>
           <span className="underline decoration-dashed decoration-muted-foreground/50 underline-offset-4">{children}</span>
-          <span className="rounded-sm bg-amber-100 px-1 text-[9px] font-semibold tracking-wide text-amber-800">MOCK</span>
         </span>
       </TooltipTrigger>
       <TooltipContent>Placeholder value. Real values will come from sparklab.stats tools.</TooltipContent>
@@ -44,13 +43,6 @@ export function CalcChip({ id, className }: { id: string; className?: string }) 
       <TooltipContent>Computed by a sparklab tool. Record {id} in ledger/calcs.jsonl.</TooltipContent>
     </Tooltip>
   )
-}
-
-// Only the mock replay shows the MOCK tag; live values show nothing extra here.
-export function MockTag({ className }: { className?: string }) {
-  const source = useDataSource()
-  if (source === "live") return null
-  return <span className={cn("rounded bg-amber-100 px-1 text-[9px] font-semibold text-amber-800", className)}>MOCK</span>
 }
 
 export function ActorAvatar({ actor, size = "md", className }: { actor: Actor; size?: "sm" | "md" | "lg"; className?: string }) {

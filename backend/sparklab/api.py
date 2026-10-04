@@ -9,6 +9,8 @@ Environment:
     SPARK_OMNIGENT_SESSION                 pin the default study's session id (otherwise matched by
                                            label / workspace, see Omni.pick_session_for)
     SPARK_UI_ORIGIN                        extra CORS origin (default allows localhost:3000)
+    SPARK_LAB_MODE=fast                    new sessions run the fast-mode spec (sparklab.fastlab)
+    SPARK_FAST_MODEL                       with fast mode: pin this model on every executor
 
 Studies. The original lab (backend/) is the default study; more live in backend/studies/<id>/
 (sparklab.studies). Every study-scoped route is under /studies/{study_id}/...; the unprefixed
@@ -44,7 +46,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from sparklab import bridge, studies
+from sparklab import bridge, fastlab, studies
 from sparklab import config as C
 from sparklab import ledger, tools
 from sparklab import unseal as unseal_mod
@@ -206,8 +208,10 @@ def build_agent_bundle() -> bytes:
     except ImportError as ex:  # pragma: no cover - depends on the venv
         raise HTTPException(503, "omnigent is not installed in the API's environment; "
                                  "`pip install omnigent` in the same venv (see RUNBOOK)") from ex
-    yaml_path = C.PACKAGE_ROOT / "lab.yaml"
     with tempfile.TemporaryDirectory() as tmp:
+        yaml_path = C.PACKAGE_ROOT / "lab.yaml"
+        if fastlab.mode() == "fast":
+            yaml_path = fastlab.write_fast_spec(Path(tmp) / "lab.yaml", os.environ.get("SPARK_FAST_MODEL") or None)
         bundle_dir = materialize_bundle(yaml_path, Path(tmp) / "bundle")
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
@@ -413,7 +417,8 @@ class NewStudy(BaseModel):
 async def health():
     reg = _reg()
     return {"status": "ok", "root": str(C.PACKAGE_ROOT), "studies": len(studies.list_studies()),
-            "active_study": studies.active_id(), "omnigent": {"url": OMNI_URL, "reachable": reg.omni.reachable}}
+            "active_study": studies.active_id(), "omnigent": {"url": OMNI_URL, "reachable": reg.omni.reachable},
+            "lab_mode": fastlab.mode()}
 
 
 @app.get("/studies")

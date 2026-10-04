@@ -111,6 +111,16 @@ def create_study(title: str, question: str = "", by: str = "human", copy_board: 
     title = title.strip()
     if not title:
         raise ValueError("title is required")
+    # A study without discovery data or a sealed hold-out cannot finish the loop (it would stop at the
+    # unseal gate with no seal entry), so refuse up front and say how to prepare the root lab.
+    root_lab = C.default_root()
+    missing = [cmd for path, cmd in (
+        (root_lab / "data" / "processed" / f"nhanes_{C.DISCOVERY}.pkl", f"python -m sparklab.data --cycle {C.DISCOVERY}"),
+        (root_lab / "data" / "sealed" / "nhanes_I.zip", f"python -m sparklab.data --cycle {C.HOLDOUT} --seal"),
+    ) if not path.exists()]
+    if missing:
+        raise ValueError(f"the root lab ({root_lab}) is not ready: run, from backend/, " + " and ".join(missing)
+                         + " (or restore data/sealed/nhanes_I.zip from whoever sealed it)")
     base = slugify(title)
     sid, n = base, 2
     while sid == C.DEFAULT_STUDY_ID or (studies_dir() / sid).exists():
@@ -121,7 +131,6 @@ def create_study(title: str, question: str = "", by: str = "human", copy_board: 
         (root / sub).mkdir(parents=True, exist_ok=True)
     (root / "prereg" / ".gitkeep").touch()
 
-    root_lab = C.default_root()
     if copy_board and (root_lab / "board" / "expectations.json").exists():
         shutil.copy2(root_lab / "board" / "expectations.json", root / "board" / "expectations.json")
         if (root_lab / "board" / "control_seeded.json").exists():

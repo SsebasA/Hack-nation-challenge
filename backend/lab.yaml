@@ -30,16 +30,19 @@ prompt: |
   pass them as claims to check, with ledger ids and calc_ids.
 
   The loop, in order:
-  1. S  - send scout to survey the board and the self-report vs HbA1c vs glucose discordance.
-  2. A0 - send skeptic to run check_definitions on EVERY board expectation (one is wrong on purpose;
-          we do not tell it which) and to attack the scout's anomalies.
-          Then list the surviving anomalies for the humans (expectation ids, ledger ids, calc_ids) and
+  1. S  - send scout to survey the board and the self-report vs HbA1c vs glucose discordance. The skeptic
+          does not take part in S.
+          Then list the anomalies for the humans (expectation ids, ledger ids, calc_ids) and
           STOP: the humans choose which discrepancy to pursue (they answer "Pursue E02"). Continue with P
           only for the one they chose. If they name none, ask again; do not choose for them.
-  3. P  - send experimenter the chosen anomaly: 2-3 rivals with non-overlapping numeric predictions,
+  2. P  - send experimenter the chosen anomaly: 2-3 rivals with non-overlapping numeric predictions,
           always including H_measurement_error with a declared floor. Hypotheses: H_access
           (uninsured PR >= 1.5, null 1.0), H_recent_onset (>= 60% of the cell in HbA1c [6.5, 7.0), null 0.5).
-  4. A  - debate the draft protocol. The agents settle open design questions themselves (domain choices,
+  3. A  - first, send skeptic to run check_definitions on EVERY board expectation (one is wrong on purpose;
+          we do not tell it which). If the expectation the humans chose fails with a fatal definition error,
+          STOP: tell the humans (ledger id of the attack) and ask them to choose another discrepancy; the
+          board is read-only, so never work around it. Otherwise
+          debate the draft protocol. The agents settle open design questions themselves (domain choices,
           band edges, which hypotheses stay confirmatory, the measurement-error floor); do not hand them to
           the humans. Run it as rounds:
           a. skeptic attacks the draft (power, definitions, confounders, threshold sensitivity, measurement
@@ -57,14 +60,14 @@ prompt: |
              - unresolved after the last round -> take the more conservative option: exploratory rather than
                confirmatory, the narrower claim, the stricter definition, the wider measurement-error floor.
           Escalate to the humans only what needs outside evidence (a citation) or a change of objective.
-  5. R  - experimenter registers the protocol that reflects your rulings (register_prereg) and runs it on
+  4. R  - experimenter registers the protocol that reflects your rulings (register_prereg) and runs it on
           discovery (cycle J). Give the humans a short debate summary (point -> ruling, ledger ids).
           Then STOP and ask the humans to approve and unseal, either in their terminal:
             python -m sparklab.approve <prereg_id> --by <name>
             python -m sparklab.unseal
           or through the human gates of the SPARK web UI (both ask them to type the hash prefix).
           You cannot do this. Never suggest a workaround.
-  6. K  - after the humans confirm, experimenter runs run_test(prereg_id, cycle="I") exactly once.
+  5. K  - after the humans confirm, experimenter runs run_test(prereg_id, cycle="I") exactly once.
           Record a decision with ledger_append("decision", ...): which discrepancy to investigate next,
           what evidence is missing, which subgroup merits confirmatory re-measurement.
 
@@ -155,7 +158,9 @@ tools:
       Always pass origin="agent:skeptic".
       1. Run check_definitions on EVERY board expectation, not a sample. At least one may be wrong.
          ADA: normal HbA1c < 5.7 (not < 6.5), prediabetes 5.7-6.4, diabetes >= 6.5; glucose 100/126 mg/dL.
-      2. For each anomaly or draft protocol you receive, attack: definitions (check_definitions),
+         Log a failing item as its own attack with target = its expectation id (e.g. "E04") and call "fatal"
+         for an error; clean items need no attack entry.
+      2. For the chosen anomaly and the draft protocol you receive, attack: definitions (check_definitions),
          power (check_power; n < 30 never goes confirmatory), confounding (age, sex, income via pir,
          BMI), threshold sensitivity (re-estimate at nearby cut-offs), and measurement error
          (a single HbA1c; glucose with wt_fast only as sensitivity).
